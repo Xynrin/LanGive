@@ -159,12 +159,21 @@ jobs:
       run: |
         sudo apt-get update
         # libfuse2 是 appimagetool 自身（也是个 AppImage）自解压所需
+        # imagemagick 用来从 assets/logo.jpg 生成 PNG 图标
         sudo apt-get install -y \
           libgtk-3-dev libwebkit2gtk-4.1-dev \
-          rpm fakeroot dpkg-dev file wget libfuse2t64 || \
+          rpm fakeroot dpkg-dev file wget imagemagick libfuse2t64 || \
         sudo apt-get install -y \
           libgtk-3-dev libwebkit2gtk-4.1-dev \
-          rpm fakeroot dpkg-dev file wget libfuse2
+          rpm fakeroot dpkg-dev file wget imagemagick libfuse2
+
+    - name: Generate icons from assets/logo.jpg
+      run: |
+        mkdir -p build/icons
+        for size in 16 32 48 64 128 256 512; do
+          convert assets/logo.jpg -resize ${size}x${size} build/icons/langive-${size}.png
+        done
+        cp build/icons/langive-256.png build/icons/langive.png
 
     - name: Build Linux (native CGO)
       env:
@@ -187,34 +196,39 @@ jobs:
         wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
         chmod +x appimagetool
 
-        mkdir -p LanGive.AppDir/usr/bin LanGive.AppDir/usr/share/applications LanGive.AppDir/usr/share/icons/hicolor/256x256/apps
-        cp "LanGive-linux-${{ matrix.arch }}" LanGive.AppDir/usr/bin/LanGive
+        APPDIR=LanGive.AppDir
+        mkdir -p $APPDIR/usr/bin \
+                 $APPDIR/usr/share/applications \
+                 $APPDIR/usr/share/icons/hicolor/256x256/apps
+        cp "LanGive-linux-${{ matrix.arch }}" $APPDIR/usr/bin/LanGive
 
-        cat > LanGive.AppDir/LanGive.desktop << 'EOF'
+        # 真图标（来自 assets/logo.jpg）
+        cp ../../build/icons/langive-256.png $APPDIR/LanGive.png
+        cp ../../build/icons/langive-256.png $APPDIR/usr/share/icons/hicolor/256x256/apps/LanGive.png
+
+        cat > $APPDIR/LanGive.desktop << 'EOF'
         [Desktop Entry]
         Name=LanGive
-        Comment=Cross-platform LAN file transfer tool
+        GenericName=LAN File Transfer
+        Comment=局域网文件传输工具
         Exec=LanGive
         Icon=LanGive
         Terminal=false
         Type=Application
         Categories=Network;FileTransfer;
+        Keywords=lan;transfer;share;file;
         EOF
-        cp LanGive.AppDir/LanGive.desktop LanGive.AppDir/usr/share/applications/
+        cp $APPDIR/LanGive.desktop $APPDIR/usr/share/applications/
 
-        # 占位图标（PNG），缺省时 appimagetool 会报错
-        printf '\x89PNG\r\n\x1a\n' > LanGive.AppDir/LanGive.png || true
-        cp LanGive.AppDir/LanGive.png LanGive.AppDir/usr/share/icons/hicolor/256x256/apps/
-
-        cat > LanGive.AppDir/AppRun << 'EOF'
+        cat > $APPDIR/AppRun << 'EOF'
         #!/bin/sh
         HERE="$(dirname "$(readlink -f "$0")")"
         exec "$HERE/usr/bin/LanGive" "$@"
         EOF
-        chmod +x LanGive.AppDir/AppRun
+        chmod +x $APPDIR/AppRun
 
-        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool --no-appstream LanGive.AppDir "LanGive-linux-${{ matrix.arch }}.AppImage" || \
-        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool LanGive.AppDir "LanGive-linux-${{ matrix.arch }}.AppImage"
+        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool --no-appstream $APPDIR "LanGive-linux-${{ matrix.arch }}.AppImage" || \
+        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool $APPDIR "LanGive-linux-${{ matrix.arch }}.AppImage"
 
     - name: Build .deb
       run: |
@@ -222,19 +236,31 @@ jobs:
         VERSION="${GITHUB_REF_NAME#v}"
         [ -z "$VERSION" ] && VERSION="0.0.0"
         PKG="langive_${VERSION}_${{ matrix.debarch }}"
-        mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/share/applications" "$PKG/usr/share/icons/hicolor/256x256/apps"
+
+        mkdir -p "$PKG/DEBIAN" \
+                 "$PKG/usr/bin" \
+                 "$PKG/usr/share/applications"
+        for s in 16 32 48 64 128 256 512; do
+          mkdir -p "$PKG/usr/share/icons/hicolor/${s}x${s}/apps"
+          cp ../../build/icons/langive-${s}.png "$PKG/usr/share/icons/hicolor/${s}x${s}/apps/langive.png"
+        done
+
         cp "LanGive-linux-${{ matrix.arch }}" "$PKG/usr/bin/langive"
         chmod 755 "$PKG/usr/bin/langive"
+
         cat > "$PKG/usr/share/applications/langive.desktop" << 'EOF'
         [Desktop Entry]
         Name=LanGive
-        Comment=Cross-platform LAN file transfer tool
+        GenericName=LAN File Transfer
+        Comment=局域网文件传输工具
         Exec=langive
         Icon=langive
         Terminal=false
         Type=Application
         Categories=Network;FileTransfer;
+        Keywords=lan;transfer;share;file;
         EOF
+
         cat > "$PKG/DEBIAN/control" << EOF
         Package: langive
         Version: ${VERSION}
@@ -246,6 +272,19 @@ jobs:
         Description: Cross-platform LAN file transfer tool
          LanGive is a cross-platform LAN file transfer tool built with Wails v2.
         EOF
+
+        cat > "$PKG/DEBIAN/postinst" << 'EOF'
+        #!/bin/sh
+        set -e
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+          gtk-update-icon-cache -f /usr/share/icons/hicolor || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+          update-desktop-database /usr/share/applications || true
+        fi
+        EOF
+        chmod 755 "$PKG/DEBIAN/postinst"
+
         dpkg-deb --build --root-owner-group "$PKG"
         mv "${PKG}.deb" "LanGive-linux-${{ matrix.arch }}.deb"
 
@@ -257,6 +296,21 @@ jobs:
 
         mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
         BIN="$(pwd)/LanGive-linux-${{ matrix.arch }}"
+        ICONS_DIR="$(pwd)/../../build/icons"
+
+        # 准备 desktop 文件
+        cat > /tmp/langive.desktop << 'EOF'
+        [Desktop Entry]
+        Name=LanGive
+        GenericName=LAN File Transfer
+        Comment=局域网文件传输工具
+        Exec=langive
+        Icon=langive
+        Terminal=false
+        Type=Application
+        Categories=Network;FileTransfer;
+        Keywords=lan;transfer;share;file;
+        EOF
 
         cat > ~/rpmbuild/SPECS/langive.spec << EOF
         Name:           langive
@@ -267,16 +321,40 @@ jobs:
         URL:            https://github.com/Xynrin/LanGive
         BuildArch:      ${{ matrix.rpmarch }}
         AutoReqProv:    no
+        Requires:       gtk3
+        Requires:       (webkit2gtk4.1 or webkit2gtk-4.1)
 
         %description
         LanGive is a cross-platform LAN file transfer tool built with Wails v2.
 
         %install
         mkdir -p %{buildroot}/usr/bin
+        mkdir -p %{buildroot}/usr/share/applications
         install -m 0755 ${BIN} %{buildroot}/usr/bin/langive
+        install -m 0644 /tmp/langive.desktop %{buildroot}/usr/share/applications/langive.desktop
+        for s in 16 32 48 64 128 256 512; do
+          mkdir -p %{buildroot}/usr/share/icons/hicolor/\${s}x\${s}/apps
+          install -m 0644 ${ICONS_DIR}/langive-\${s}.png \\
+            %{buildroot}/usr/share/icons/hicolor/\${s}x\${s}/apps/langive.png
+        done
 
         %files
         /usr/bin/langive
+        /usr/share/applications/langive.desktop
+        /usr/share/icons/hicolor/*/apps/langive.png
+
+        %post
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+          gtk-update-icon-cache -f /usr/share/icons/hicolor || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+          update-desktop-database /usr/share/applications || true
+        fi
+
+        %postun
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+          gtk-update-icon-cache -f /usr/share/icons/hicolor || true
+        fi
         EOF
 
         rpmbuild -bb --target=${{ matrix.rpmarch }} ~/rpmbuild/SPECS/langive.spec
