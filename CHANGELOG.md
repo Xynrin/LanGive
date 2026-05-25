@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.7 — 2026-05-25
+
+- fix(android): bridge Config 字段改为不导出，避免 gomobile 重定义
+
+
 ## v1.0.6 — 2026-05-25
 
 - fix(android): 新增 mobile/bridge/ 公开包以适配 gomobile bind
