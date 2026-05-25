@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.8 — 2026-05-25
+
+- fix(android): manifest 移除尚未提供的 mipmap 图标引用
+
+
 ## v1.0.7 — 2026-05-25
 
 - fix(android): bridge Config 字段改为不导出，避免 gomobile 重定义
