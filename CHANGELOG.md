@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.6 — 2026-05-25
+
+- fix(android): 新增 mobile/bridge/ 公开包以适配 gomobile bind
+
+
 ## v1.0.5 — 2026-05-25
 
 - fix(android): 添加 golang.org/x/mobile 依赖
