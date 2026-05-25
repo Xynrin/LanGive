@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.5 — 2026-05-25
+
+- fix(android): 添加 golang.org/x/mobile 依赖
+
+
 ## v1.0.4 — 2026-05-25
 
 - fix(ci): 修复 AppImage libfuse 依赖 + 接入 Android 工程
