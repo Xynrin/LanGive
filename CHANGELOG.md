@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.10 — 2026-05-25
+
+
+
 ## v1.0.9 — 2026-05-25
 
 - fix(android): bridge Config 改名为 Settings，修 Kotlin 编译错误
