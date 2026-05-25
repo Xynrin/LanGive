@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.4 — 2026-05-25
+
+- fix(ci): 修复 AppImage libfuse 依赖 + 接入 Android 工程
+
+
 ## v1.0.3 — 2026-05-25
 
 - fix(ci): Linux 改用原生 runner + 强制 webkit2_41
