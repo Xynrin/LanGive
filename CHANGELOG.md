@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.15 — 2026-05-25
+
+- fix(frontend): Home.vue 修正 wailsjs 模块路径
+
+
 ## v1.0.14 — 2026-05-25
 
 - fix(ci): generate 前先创建占位 dist，避开 embed 空目录错

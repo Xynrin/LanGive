@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	Version        = "1.0.14"
+	Version        = "1.0.15"
 	DefaultPort    = 5566
 	PublicSession  = "public"
 
