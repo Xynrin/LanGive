@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.14 — 2026-05-25
+
+- fix(ci): generate 前先创建占位 dist，避开 embed 空目录错
+
+
 ## v1.0.13 — 2026-05-25
 
 - fix(ci): 在 npm run build 前先 wails generate module
