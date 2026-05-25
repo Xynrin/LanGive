@@ -48,6 +48,9 @@ jobs:
         cd frontend
         npm install
 
+    - name: Generate Wails bindings
+      run: wails generate module
+
     - name: Build frontend assets
       shell: bash
       run: |
@@ -103,6 +106,9 @@ jobs:
       run: |
         cd frontend
         npm install
+
+    - name: Generate Wails bindings
+      run: wails generate module
 
     - name: Build frontend assets
       run: |
@@ -167,6 +173,9 @@ jobs:
       run: |
         cd frontend
         npm install
+
+    - name: Generate Wails bindings
+      run: wails generate module
 
     - name: Build frontend assets
       run: |
