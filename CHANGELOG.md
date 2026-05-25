@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.13 — 2026-05-25
+
+- fix(ci): 在 npm run build 前先 wails generate module
+
+
 ## v1.0.12 — 2026-05-25
 
 - fix(ci): 显式构建前端，避免 dist 为空导致 embed 失败
