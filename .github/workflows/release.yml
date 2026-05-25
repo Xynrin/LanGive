@@ -48,12 +48,19 @@ jobs:
         cd frontend
         npm install
 
+    - name: Build frontend assets
+      shell: bash
+      run: |
+        cd frontend
+        npm run build
+        test -f dist/index.html || (echo "ERROR: frontend/dist/index.html missing" && exit 1)
+
     - name: Build Windows
       env:
         GOOS: windows
         GOARCH: ${{ matrix.arch }}
       run: |
-        wails build -platform windows/${{ matrix.arch }} -ldflags "-X main.Version=${{ github.ref_name }}"
+        wails build -platform windows/${{ matrix.arch }} -s -ldflags "-X main.Version=${{ github.ref_name }}"
 
     - name: Rename output
       shell: bash
@@ -97,12 +104,18 @@ jobs:
         cd frontend
         npm install
 
+    - name: Build frontend assets
+      run: |
+        cd frontend
+        npm run build
+        test -f dist/index.html || (echo "ERROR: frontend/dist/index.html missing" && exit 1)
+
     - name: Build macOS
       env:
         GOOS: darwin
         GOARCH: ${{ matrix.arch }}
       run: |
-        wails build -platform darwin/${{ matrix.arch }} -ldflags "-X main.Version=${{ github.ref_name }}"
+        wails build -platform darwin/${{ matrix.arch }} -s -ldflags "-X main.Version=${{ github.ref_name }}"
 
     - name: Package macOS app
       run: |
@@ -155,6 +168,12 @@ jobs:
         cd frontend
         npm install
 
+    - name: Build frontend assets
+      run: |
+        cd frontend
+        npm run build
+        test -f dist/index.html || (echo "ERROR: frontend/dist/index.html missing" && exit 1)
+
     - name: Install Linux build dependencies
       run: |
         sudo apt-get update
@@ -180,7 +199,7 @@ jobs:
         GOOS: linux
         CGO_ENABLED: '1'
       run: |
-        wails build -platform linux/${{ matrix.arch }} -tags webkit2_41 -ldflags "-X main.Version=${{ github.ref_name }}"
+        wails build -platform linux/${{ matrix.arch }} -s -tags webkit2_41 -ldflags "-X main.Version=${{ github.ref_name }}"
 
     - name: Rename binary
       run: |
