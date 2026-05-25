@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.17 — 2026-05-25
+
+- fix(android): 给 release APK 加签名，修复 PackageInfo is null
+
+
 ## v1.0.16 — 2026-05-25
 
 - fix(ci): release job 收集 .apk 一并发布
