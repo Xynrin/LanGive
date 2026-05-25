@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.9 — 2026-05-25
+
+- fix(android): bridge Config 改名为 Settings，修 Kotlin 编译错误
+
+
 ## v1.0.8 — 2026-05-25
 
 - fix(android): manifest 移除尚未提供的 mipmap 图标引用
