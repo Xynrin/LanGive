@@ -151,7 +151,8 @@ jobs:
     - name: Install Linux dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+        # Ubuntu 24.04 ships webkit2gtk 4.1; 4.0 is no longer available
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
     - name: Build Linux
       env:
@@ -241,10 +242,13 @@ jobs:
         echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653"
 
     - name: Install gomobile
+      env:
+        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/25.2.9519653
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
         go install golang.org/x/mobile/cmd/gobind@latest
-        gomobile init -ndk $ANDROID_HOME/ndk/25.2.9519653
+        # 新版 gomobile init 不再接受 -ndk，改读 ANDROID_NDK_HOME
+        gomobile init
 
     - name: Build Android AAR
       env:
