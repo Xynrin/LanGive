@@ -77,7 +77,7 @@ const goToDevices = () => {
 
 const openDownloadFolder = async () => {
   try {
-    const { GetDownloadPath } = await import('../../wailsjs/go/main/App')
+    const { GetDownloadPath } = await import('../../wailsjs/go/main/LanGiveApp')
     const path = await GetDownloadPath()
     // 使用系统默认方式打开文件夹
   } catch (e) {
@@ -106,7 +106,7 @@ const formatStatus = (status) => {
 
 const loadData = async () => {
   try {
-    const { GetDevices, GetTransfers } = await import('../../wailsjs/go/main/App')
+    const { GetDevices, GetTransfers } = await import('../../wailsjs/go/main/LanGiveApp')
     const devices = await GetDevices()
     const transfers = await GetTransfers()
     
