@@ -1,0 +1,51 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Wails
+build/bin/
+build/darwin/
+build/windows/
+frontend/dist/
+frontend/wailsjs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config and logs
+*.log
+config.json
+
+# Mobile
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties

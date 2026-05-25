@@ -1,0 +1,24 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "LanGive",
+  "outputfilename": "LanGive",
+  "frontend": {
+    "dir": "./frontend",
+    "install": "npm install",
+    "build": "npm run build",
+    "dev": "npm run dev",
+    "wailsjsdir": "./src"
+  },
+  "author": {
+    "name": "Xynrin",
+    "email": ""
+  },
+  "info": {
+    "companyName": "LanGive",
+    "productName": "LanGive",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2026",
+    "comments": "A cross-platform LAN file transfer tool"
+  },
+  "nsisType": "multiple"
+}
