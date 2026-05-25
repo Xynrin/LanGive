@@ -492,7 +492,7 @@ jobs:
     - name: Prepare release files
       run: |
         mkdir -p release
-        find artifacts -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
+        find artifacts -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.apk' \) -exec cp {} release/ \;
         ls -la release/
 
     - name: Read release notes
