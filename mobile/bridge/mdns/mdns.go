@@ -93,11 +93,11 @@ func (s *Service) GetDevice(uuid string) *DeviceInfo {
 	return wrapDevice(*d)
 }
 
-// StartCleanupRoutine interval / timeout 单位为纳秒（与 GetScanInterval 对齐）。
-func (s *Service) StartCleanupRoutine(intervalNs, timeoutNs int64) {
-	s.inner.StartCleanupRoutine(time.Duration(intervalNs), time.Duration(timeoutNs))
+// StartCleanupRoutine intervalSec / timeoutSec 单位为秒，与 config.Settings 保持一致。
+func (s *Service) StartCleanupRoutine(intervalSec, timeoutSec int64) {
+	s.inner.StartCleanupRoutine(time.Duration(intervalSec)*time.Second, time.Duration(timeoutSec)*time.Second)
 }
 
-func (s *Service) RemoveStaleDevices(timeoutNs int64) {
-	s.inner.RemoveStaleDevices(time.Duration(timeoutNs))
+func (s *Service) RemoveStaleDevices(timeoutSec int64) {
+	s.inner.RemoveStaleDevices(time.Duration(timeoutSec) * time.Second)
 }

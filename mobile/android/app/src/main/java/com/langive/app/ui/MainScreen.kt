@@ -93,5 +93,5 @@ fun formatSize(bytes: Long): String {
     val k = 1024.0
     val sizes = arrayOf("B", "KB", "MB", "GB", "TB")
     val i = kotlin.math.floor(kotlin.math.log(bytes.toDouble(), k)).toInt()
-    return String.format("%.2f %s", bytes / kotlin.math.pow(k, i.toDouble()), sizes[i])
+    return String.format("%.2f %s", bytes / Math.pow(k, i.toDouble()), sizes[i])
 }

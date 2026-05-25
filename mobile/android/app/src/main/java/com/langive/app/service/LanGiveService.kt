@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.langive.app.R
 import com.langive.bridge.config.Config
+import com.langive.bridge.config.Settings
 import com.langive.bridge.mdns.DeviceInfo
 import com.langive.bridge.mdns.Mdns
 import com.langive.bridge.transfer.IncomingRequest
@@ -37,7 +38,7 @@ class LanGiveService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Go Bridge Services
-    private var config: Config? = null
+    private var config: Settings? = null
     private var mdnsService: com.langive.bridge.mdns.Service? = null
     private var transferService: com.langive.bridge.transfer.Service? = null
 
