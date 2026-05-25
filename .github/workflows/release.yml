@@ -158,9 +158,13 @@ jobs:
     - name: Install Linux build dependencies
       run: |
         sudo apt-get update
+        # libfuse2 是 appimagetool 自身（也是个 AppImage）自解压所需
         sudo apt-get install -y \
           libgtk-3-dev libwebkit2gtk-4.1-dev \
-          rpm fakeroot dpkg-dev file wget
+          rpm fakeroot dpkg-dev file wget libfuse2t64 || \
+        sudo apt-get install -y \
+          libgtk-3-dev libwebkit2gtk-4.1-dev \
+          rpm fakeroot dpkg-dev file wget libfuse2
 
     - name: Build Linux (native CGO)
       env:
@@ -287,18 +291,72 @@ jobs:
           build/bin/LanGive-linux-${{ matrix.arch }}.deb
           build/bin/LanGive-linux-${{ matrix.arch }}.rpm
 
-  # ==================== Android Build (DISABLED) ====================
-  # 暂时禁用：mobile/android/ 仅有占位 README，没有 Gradle 工程，
-  # gomobile bind 与 ./gradlew assembleRelease 无法跑通。
-  # 等 Android 工程落地后再开启此 job。
-  # build-android:
-  #   if: false
-  #   runs-on: ubuntu-latest
-  #   ...
+  # ==================== Android Build ====================
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Set up Android NDK
+      run: |
+        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653"
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
+
+    - name: Install gomobile
+      run: |
+        go install golang.org/x/mobile/cmd/gomobile@latest
+        go install golang.org/x/mobile/cmd/gobind@latest
+        gomobile init
+
+    - name: Build langive.aar (multi-arch)
+      run: |
+        mkdir -p mobile/android/app/libs
+        # gomobile bind 一次产 fat AAR，包含 arm64-v8a/armeabi-v7a/x86/x86_64
+        gomobile bind \
+          -target=android \
+          -androidapi 21 \
+          -javapkg=com.langive.bridge \
+          -o mobile/android/app/libs/langive.aar \
+          ./internal/mdns ./internal/transfer ./internal/config ./internal/security
+
+    - name: Build Android APK
+      run: |
+        cd mobile/android
+        chmod +x gradlew
+        ./gradlew assembleRelease --no-daemon
+
+    - name: Rename APK
+      run: |
+        cd mobile/android/app/build/outputs/apk/release
+        for f in *.apk; do
+          cp "$f" "/tmp/LanGive-android-${{ github.ref_name }}.apk"
+        done
+
+    - name: Upload Android artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: LanGive-android
+        path: /tmp/LanGive-android-*.apk
 
   # ==================== Create Release ====================
   release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos, build-linux, build-android]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:

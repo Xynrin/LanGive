@@ -48,4 +48,9 @@ config.json
 # Mobile
 mobile/android/.gradle/
 mobile/android/app/build/
+mobile/android/build/
 mobile/android/local.properties
+mobile/android/app/libs/langive.aar
+
+# Release tooling
+.release/

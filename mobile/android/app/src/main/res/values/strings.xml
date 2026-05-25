@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LanGive</string>
+    <string name="title_home">首页</string>
+    <string name="title_devices">设备</string>
+    <string name="title_transfers">传输记录</string>
+    <string name="title_settings">设置</string>
+    
+    <string name="status_online">在线</string>
+    <string name="status_offline">离线</string>
+    
+    <!-- Home Tab -->
+    <string name="welcome_title">欢迎使用 LanGive</string>
+    <string name="welcome_subtitle">简单快捷的局域网文件传输工具</string>
+    <string name="stat_online_devices">在线设备</string>
+    <string name="stat_completed_transfers">已完成传输</string>
+    <string name="stat_active_transfers">进行中</string>
+    <string name="action_send_files">发送文件</string>
+    <string name="action_open_downloads">下载文件夹</string>
+    
+    <!-- Settings Tab -->
+    <string name="settings_device_info">设备信息</string>
+    <string name="settings_device_name">设备名称</string>
+    <string name="settings_device_id">设备 ID</string>
+    <string name="settings_privacy">隐私与会话</string>
+    <string name="settings_privacy_mode">隐私模式</string>
+    <string name="settings_privacy_desc">开启后不在公共会话中广播，仅能通过 IP 直接连接</string>
+    <string name="settings_session_id">会话 ID</string>
+    <string name="settings_storage">存储设置</string>
+    <string name="settings_download_path">下载路径</string>
+    <string name="settings_scan">扫描设置</string>
+    <string name="settings_scan_interval">扫描间隔</string>
+    <string name="settings_scan_interval_fast">快速 (5秒)</string>
+    <string name="settings_scan_interval_normal">平衡 (15秒)</string>
+    <string name="settings_scan_interval_slow">节能 (30秒)</string>
+    <string name="settings_scan_desc">后台运行时将自动使用更长的扫描间隔</string>
+    <string name="settings_port">服务端口</string>
+    <string name="settings_about">关于与更新</string>
+    <string name="settings_version">当前版本</string>
+    <string name="settings_update_desc">Android 不支持自动更新，请到 GitHub Releases 下载新版</string>
+    
+    <!-- Notifications -->
+    <string name="notif_channel_name">LanGive 服务</string>
+    <string name="notif_channel_desc">用于保持局域网文件发现和传输服务在后台运行</string>
+    <string name="notif_title">LanGive 正在监听中</string>
+    <string name="notif_content">局域网文件传输服务已启动</string>
+</resources>
