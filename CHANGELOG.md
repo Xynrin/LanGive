@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.12 — 2026-05-25
+
+- fix(ci): 显式构建前端，避免 dist 为空导致 embed 失败
+
+
 ## v1.0.11 — 2026-05-25
 
 - fix(linux-pkg): 修复包装内缺图标/desktop/运行时依赖问题
