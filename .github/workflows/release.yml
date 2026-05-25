@@ -328,12 +328,13 @@ jobs:
       run: |
         mkdir -p mobile/android/app/libs
         # gomobile bind 一次产 fat AAR，包含 arm64-v8a/armeabi-v7a/x86/x86_64
+        # gomobile bind 不允许 ./internal/*，故对外通过 mobile/bridge/* 暴露 API
         gomobile bind \
           -target=android \
           -androidapi 21 \
           -javapkg=com.langive.bridge \
           -o mobile/android/app/libs/langive.aar \
-          ./internal/mdns ./internal/transfer ./internal/config ./internal/security
+          ./mobile/bridge/mdns ./mobile/bridge/transfer ./mobile/bridge/config ./mobile/bridge/security
 
     - name: Build Android APK
       run: |
