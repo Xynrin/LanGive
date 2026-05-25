@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.16 — 2026-05-25
+
+- fix(ci): release job 收集 .apk 一并发布
+
+
 ## v1.0.15 — 2026-05-25
 
 - fix(frontend): Home.vue 修正 wailsjs 模块路径
