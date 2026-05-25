@@ -160,6 +160,12 @@ func (c *Config) GetScanInterval() time.Duration {
 	return time.Duration(c.ScanInterval) * time.Second
 }
 
+// GetDeviceTimeout 设备超时时间，约定为扫描间隔的 3 倍
+// 避免后台模式下扫描慢于固定 timeout 导致设备列表闪烁
+func (c *Config) GetDeviceTimeout() time.Duration {
+	return c.GetScanInterval() * 3
+}
+
 // SetBackgroundMode 设置后台模式并调整扫描间隔
 func (c *Config) SetBackgroundMode(background bool) {
 	c.BackgroundMode = background

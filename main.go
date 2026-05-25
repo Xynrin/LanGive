@@ -5,6 +5,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -60,10 +62,15 @@ func (a *LanGiveApp) startup(ctx context.Context) {
 	if err := a.mdns.Start(); err != nil {
 		fmt.Printf("Failed to start mDNS: %v\n", err)
 	}
-	a.mdns.StartCleanupRoutine(cfg.GetScanInterval(), config.DeviceTimeout)
+	a.mdns.StartCleanupRoutine(cfg.GetScanInterval(), cfg.GetDeviceTimeout())
 
 	// Initialize transfer service
 	a.transfer = transfer.NewService(cfg.DownloadPath, cfg.Port)
+	a.transfer.SetOnIncomingRequest(func(r *transfer.IncomingRequest) {
+		if a.ctx != nil {
+			wailsruntime.EventsEmit(a.ctx, "transfer:incoming", r)
+		}
+	})
 	if err := a.transfer.Start(); err != nil {
 		fmt.Printf("Failed to start transfer service: %v\n", err)
 	}
@@ -118,6 +125,31 @@ func (a *LanGiveApp) SendFolder(deviceID string, folderPath string) error {
 	return a.transfer.SendFolder(device.Address, folderPath)
 }
 
+// IsDirectory 判断给定路径是否为目录；不存在或读取失败返回 false + err
+func (a *LanGiveApp) IsDirectory(path string) (bool, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	return st.IsDir(), nil
+}
+
+// SendPath 按 path 实际类型派发：目录 → SendFolder，文件 → SendFiles
+func (a *LanGiveApp) SendPath(deviceID string, path string) error {
+	device := a.mdns.GetDevice(deviceID)
+	if device == nil {
+		return fmt.Errorf("device not found")
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if st.IsDir() {
+		return a.transfer.SendFolder(device.Address, path)
+	}
+	return a.transfer.SendFiles(device.Address, []string{path})
+}
+
 // GetTransfers returns all transfers
 func (a *LanGiveApp) GetTransfers() []*transfer.TransferStatus {
 	return a.transfer.GetTransfers()
@@ -126,6 +158,28 @@ func (a *LanGiveApp) GetTransfers() []*transfer.TransferStatus {
 // CancelTransfer cancels a transfer
 func (a *LanGiveApp) CancelTransfer(id string) error {
 	return a.transfer.CancelTransfer(id)
+}
+
+// ClearCompletedTransfers 清空已完成/失败/取消的传输记录
+func (a *LanGiveApp) ClearCompletedTransfers() error {
+	a.transfer.ClearCompleted()
+	return nil
+}
+
+// PendingIncomingRequests 返回当前等待用户确认的传入请求
+func (a *LanGiveApp) PendingIncomingRequests() []*transfer.IncomingRequest {
+	return a.transfer.PendingRequests()
+}
+
+// ApproveIncoming 批准一个传入请求并发放 token
+func (a *LanGiveApp) ApproveIncoming(id string) error {
+	_, err := a.transfer.ApproveIncoming(id)
+	return err
+}
+
+// RejectIncoming 拒绝一个传入请求
+func (a *LanGiveApp) RejectIncoming(id string) error {
+	return a.transfer.RejectIncoming(id)
 }
 
 // ============ Config Methods ============
@@ -247,6 +301,20 @@ func (a *LanGiveApp) SelectFiles() ([]string, error) {
 		Title:                "选择文件",
 		CanCreateDirectories: false,
 	})
+}
+
+// OpenInExplorer 用系统资源管理器打开指定路径
+func (a *LanGiveApp) OpenInExplorer(path string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", path)
+	case "darwin":
+		cmd = exec.Command("open", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+	return cmd.Start()
 }
 
 // ============ Update Methods ============

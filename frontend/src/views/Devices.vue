@@ -1,287 +1,139 @@
 <template>
-  <div class="devices">
-    <header class="page-header">
-      <h1>设备列表</h1>
-      <p class="subtitle">发现 {{ devices.length }} 台在线设备</p>
+  <div class="space-y-6 animate-fadeIn">
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">设备</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">局域网内的 LanGive 设备 · 每 5 秒刷新</p>
+      </div>
+      <button @click="refresh" class="btn-ghost"><RefreshCw class="w-4 h-4" /> 刷新</button>
     </header>
 
-    <div v-if="devices.length === 0" class="empty-state card">
-      <div class="empty-state-icon">🔍</div>
-      <h3>未发现设备</h3>
-      <p>请确保其他设备已启动 LanGive 并连接到同一局域网</p>
+    <div v-if="loading && devices.length === 0" class="card text-center text-slate-400 py-12">扫描中…</div>
+    <div v-else-if="devices.length === 0" class="card text-center text-slate-400 py-12">
+      <Wifi class="w-8 h-8 mx-auto mb-2" />
+      <div>暂无可发现的设备</div>
+      <div class="text-xs mt-1">确认对端在同一局域网且已开启 LanGive</div>
     </div>
 
-    <div v-else class="device-grid">
-      <div
-        v-for="device in devices"
-        :key="device.id"
-        class="device-card"
-        @click="selectDevice(device)"
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <article
+        v-for="d in devices"
+        :key="d.uuid"
+        class="card card-hover group"
       >
-        <div class="device-platform">
-          {{ getPlatformIcon(device.platform) }}
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center text-white shadow-md shadow-brand-500/30">
+            <component :is="platformIcon(d.platform)" class="w-5 h-5" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium truncate">{{ d.name || '(未命名)' }}</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ d.address }}:{{ d.port }}</div>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span class="badge bg-slate-500/10 text-slate-500">{{ d.platform || '?' }}</span>
+              <span v-if="d.privacy" class="badge bg-amber-500/15 text-amber-600">隐私</span>
+              <span v-else class="badge bg-emerald-500/15 text-emerald-600">公共</span>
+            </div>
+          </div>
         </div>
-        <div class="device-info">
-          <h3 class="device-name">{{ device.name }}</h3>
-          <p class="device-address">{{ device.address }}</p>
-        </div>
-        <button class="btn btn-primary" @click.stop="sendToDevice(device)">
-          发送
+        <button
+          class="btn-primary w-full justify-center mt-4"
+          @click="openSend(d)"
+        >
+          <Send class="w-4 h-4" /> 发送
         </button>
-      </div>
+      </article>
     </div>
 
-    <!-- 发送文件对话框 -->
-    <div v-if="showSendDialog" class="dialog-overlay" @click="closeDialog">
-      <div class="dialog" @click.stop>
-        <h3>发送文件到 {{ selectedDevice?.name }}</h3>
-        <div class="dialog-content">
-          <div class="file-input-area">
-            <input
-              type="file"
-              ref="fileInput"
-              multiple
-              @change="handleFileSelect"
-              style="display: none"
-            />
-            <button class="btn btn-secondary" @click="$refs.fileInput.click()">
-              选择文件
+    <Transition name="modal">
+      <div v-if="target" class="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm" @click.self="target = null">
+        <div class="card w-[420px] max-w-[92vw] p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">发送到 {{ target.name }}</h3>
+            <button @click="target = null" class="text-slate-400 hover:text-slate-600"><X class="w-4 h-4" /></button>
+          </div>
+          <div class="space-y-2">
+            <button @click="sendFiles" class="btn-ghost w-full justify-start" :disabled="busy">
+              <FileText class="w-4 h-4" /> 选择文件…
             </button>
-            <button class="btn btn-secondary" @click="selectFolder">
-              选择文件夹
+            <button @click="sendFolder" class="btn-ghost w-full justify-start" :disabled="busy">
+              <Folder class="w-4 h-4" /> 选择文件夹…
             </button>
           </div>
-          <div v-if="selectedFiles.length > 0" class="selected-files">
-            <p>已选择 {{ selectedFiles.length }} 个文件:</p>
-            <ul>
-              <li v-for="file in selectedFiles" :key="file">{{ file }}</li>
-            </ul>
-          </div>
-        </div>
-        <div class="dialog-actions">
-          <button class="btn btn-secondary" @click="closeDialog">取消</button>
-          <button
-            class="btn btn-primary"
-            @click="confirmSend"
-            :disabled="selectedFiles.length === 0"
-          >
-            发送
-          </button>
+          <div v-if="error" class="mt-4 text-sm text-rose-500">{{ error }}</div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import {
+  RefreshCw, Wifi, Send, X, FileText, Folder,
+  Monitor, Apple, Smartphone, Laptop
+} from 'lucide-vue-next'
+import {
+  GetPublicDevices, SendPath, SelectFiles, SelectFolder
+} from '../../wailsjs/go/main/LanGiveApp'
 
 const devices = ref([])
-const showSendDialog = ref(false)
-const selectedDevice = ref(null)
-const selectedFiles = ref([])
-let refreshInterval
+const loading = ref(true)
+const target = ref(null)
+const busy = ref(false)
+const error = ref('')
 
-const getPlatformIcon = (platform) => {
-  const icons = {
-    'windows': '💻',
-    'darwin': '🍎',
-    'linux': '🐧',
-    'android': '📱',
-    'ios': '📱'
+let timer = null
+
+function platformIcon(p) {
+  switch ((p || '').toLowerCase()) {
+    case 'darwin': return Apple
+    case 'windows': return Monitor
+    case 'android':
+    case 'ios': return Smartphone
+    default: return Laptop
   }
-  return icons[platform] || '💻'
 }
 
-const selectDevice = (device) => {
-  selectedDevice.value = device
-}
-
-const sendToDevice = (device) => {
-  selectedDevice.value = device
-  showSendDialog.value = true
-  selectedFiles.value = []
-}
-
-const handleFileSelect = (event) => {
-  const files = Array.from(event.target.files)
-  selectedFiles.value = files.map(f => f.path || f.name)
-}
-
-const selectFolder = async () => {
-  // 调用后端选择文件夹
+async function refresh() {
   try {
-    const { SelectFolder } = await import('../../wailsjs/go/main/App')
-    const folder = await SelectFolder()
-    if (folder) {
-      selectedFiles.value = [folder]
+    devices.value = await GetPublicDevices() || []
+  } catch (e) {}
+  loading.value = false
+}
+
+function openSend(d) { target.value = d; error.value = '' }
+
+async function sendFiles() {
+  if (!target.value) return
+  try {
+    busy.value = true
+    const files = await SelectFiles()
+    if (!files || files.length === 0) { busy.value = false; return }
+    for (const f of files) {
+      await SendPath(target.value.uuid, f)
     }
-  } catch (e) {
-    console.error('Failed to select folder:', e)
-  }
+    target.value = null
+  } catch (e) { error.value = String(e) }
+  finally { busy.value = false }
 }
 
-const confirmSend = async () => {
-  if (!selectedDevice.value || selectedFiles.value.length === 0) return
-  
+async function sendFolder() {
+  if (!target.value) return
   try {
-    const { SendFiles, SendFolder } = await import('../../wailsjs/go/main/App')
-    
-    // 判断是文件还是文件夹
-    const isFolder = selectedFiles.value.length === 1 && !selectedFiles.value[0].includes('.')
-    
-    if (isFolder) {
-      await SendFolder(selectedDevice.value.id, selectedFiles.value[0])
-    } else {
-      await SendFiles(selectedDevice.value.id, selectedFiles.value)
-    }
-    
-    closeDialog()
-    alert('文件发送成功！')
-  } catch (e) {
-    alert('发送失败: ' + e.message)
-  }
+    busy.value = true
+    const dir = await SelectFolder()
+    if (!dir) { busy.value = false; return }
+    await SendPath(target.value.uuid, dir)
+    target.value = null
+  } catch (e) { error.value = String(e) }
+  finally { busy.value = false }
 }
 
-const closeDialog = () => {
-  showSendDialog.value = false
-  selectedDevice.value = null
-  selectedFiles.value = []
-}
-
-const loadDevices = async () => {
-  try {
-    const { GetDevices } = await import('../../wailsjs/go/main/App')
-    devices.value = await GetDevices()
-  } catch (e) {
-    console.error('Failed to load devices:', e)
-  }
-}
-
-onMounted(() => {
-  loadDevices()
-  refreshInterval = setInterval(loadDevices, 5000)
-})
-
-onUnmounted(() => {
-  clearInterval(refreshInterval)
-})
+onMounted(async () => { await refresh(); timer = setInterval(refresh, 5000) })
+onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped>
-.devices {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 2rem;
-}
-
-.page-header h1 {
-  font-size: 1.875rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.subtitle {
-  color: var(--text-secondary);
-}
-
-.device-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-}
-
-.device-card {
-  background: var(--card-bg);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: var(--shadow);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.device-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-}
-
-.device-platform {
-  font-size: 2rem;
-}
-
-.device-info {
-  flex: 1;
-}
-
-.device-name {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.device-address {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.dialog {
-  background: var(--card-bg);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: var(--shadow-lg);
-}
-
-.dialog h3 {
-  margin-bottom: 1rem;
-}
-
-.dialog-content {
-  margin-bottom: 1.5rem;
-}
-
-.file-input-area {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.selected-files {
-  background: var(--bg-color);
-  padding: 1rem;
-  border-radius: 0.5rem;
-}
-
-.selected-files ul {
-  margin-top: 0.5rem;
-  padding-left: 1.5rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
+.modal-enter-active, .modal-leave-active { transition: opacity .2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 </style>

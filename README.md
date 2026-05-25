@@ -1,3 +1,7 @@
+<div style="text-align: center;">
+  <img src="./assets/logo.jpg" width="150" />
+</div>
+
 # LanGive
 
 一款基于 mDNS 协议的跨平台局域网文件传输工具，支持 Windows、macOS、Linux、iOS 和 Android。
@@ -21,11 +25,13 @@
 ## 系统要求
 
 ### 桌面端
+
 - Windows 10/11 (amd64, x86, arm64)
 - macOS 10.15+ (Intel/Apple Silicon)
 - Linux (amd64, x86, arm64)
 
 ### 移动端
+
 - iOS 14+ (arm64)
 - Android 7.0+ (arm64, x86, x86_64)
 
@@ -43,6 +49,7 @@
 | Linux | amd64/x86/arm64 | AppImage / deb / RPM |
 
 **移动端**
+
 - **Android**: 下载 `LanGive-android-*.apk`
 - **iOS**: 通过 TestFlight 安装（即将推出）
 
@@ -151,14 +158,14 @@ LanGive/
 
 ## 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| 后端 | Go |
-| 前端 | Vue 3 + Vue Router + Pinia |
-| UI 框架 | Wails v2 |
-| 服务发现 | mDNS (hashicorp/mdns) |
-| 文件传输 | TCP + HTTP |
-| 构建 | GitHub Actions |
+| 类别     | 技术                       |
+| -------- | -------------------------- |
+| 后端     | Go                         |
+| 前端     | Vue 3 + Vue Router + Pinia |
+| UI 框架  | Wails v2                   |
+| 服务发现 | mDNS (hashicorp/mdns)      |
+| 文件传输 | TCP + HTTP                 |
+| 构建     | GitHub Actions             |
 
 ## 架构设计
 
@@ -190,11 +197,13 @@ LanGive/
 ## 隐私与会话
 
 ### 公共会话
+
 - 默认加入公共会话
 - 所有未开启隐私模式的设备可见
 - 适合家庭、办公等信任环境
 
 ### 隐私模式
+
 - 不在公共会话中广播
 - 只能通过 IP 直接连接
 - 适合公共 WiFi 等敏感环境
@@ -212,4 +221,4 @@ LanGive/
 
 ---
 
-*LanGive - 让局域网文件传输变得简单*
+_LanGive - 让局域网文件传输变得简单_

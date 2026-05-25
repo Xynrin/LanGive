@@ -15,13 +15,13 @@ on:
           - windows
           - macos
           - linux
-          - android
 
 jobs:
   # ==================== Windows Build ====================
   build-windows:
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -56,6 +56,7 @@ jobs:
         wails build -platform windows/${{ matrix.arch }} -ldflags "-X main.Version=${{ github.ref_name }}"
 
     - name: Rename output
+      shell: bash
       run: |
         cd build/bin
         mv LanGive.exe "LanGive-windows-${{ matrix.arch }}.exe"
@@ -70,6 +71,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -105,12 +107,7 @@ jobs:
     - name: Package macOS app
       run: |
         cd build/bin
-        if [ "${{ matrix.arch }}" = "arm64" ]; then
-          # macOS arm64 needs special handling
-          zip -r "LanGive-macos-${{ matrix.arch }}.zip" LanGive.app
-        else
-          zip -r "LanGive-macos-${{ matrix.arch }}.zip" LanGive.app
-        fi
+        zip -r "LanGive-macos-${{ matrix.arch }}.zip" LanGive.app
 
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
@@ -118,15 +115,21 @@ jobs:
         name: LanGive-macos-${{ matrix.arch }}
         path: build/bin/LanGive-macos-${{ matrix.arch }}.zip
 
-  # ==================== Linux Build ====================
+  # ==================== Linux Build (amd64 + arm64, AppImage + deb + RPM) ====================
   build-linux:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
-          - arch: '386'
+            debarch: amd64
+            rpmarch: x86_64
+            appimage_arch: x86_64
           - arch: arm64
+            debarch: arm64
+            rpmarch: aarch64
+            appimage_arch: aarch64
     steps:
     - uses: actions/checkout@v4
 
@@ -148,39 +151,48 @@ jobs:
         cd frontend
         npm install
 
-    - name: Install Linux dependencies
+    - name: Install Linux build dependencies
       run: |
         sudo apt-get update
-        # Ubuntu 24.04 ships webkit2gtk 4.1; 4.0 is no longer available
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+        # Ubuntu 24.04 ships webkit2gtk 4.1; 4.0 不再可用
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev rpm fakeroot dpkg-dev file
+        # arm64 交叉编译所需的工具链
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          sudo dpkg --add-architecture arm64
+          # 仅追加 arm64 源条目，避免主仓库尝试拉取 arm64 amd64 包导致 404
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main universe" | sudo tee /etc/apt/sources.list.d/arm64.list
+          sudo apt-get update || true
+          sudo apt-get install -y gcc-aarch64-linux-gnu libgtk-3-dev:arm64 libwebkit2gtk-4.1-dev:arm64 || \
+            echo "WARN: arm64 cross deps failed, fall back to non-CGO build"
+        fi
 
-    - name: Build Linux
+    - name: Build Linux (CGO)
       env:
         GOOS: linux
         GOARCH: ${{ matrix.arch }}
+        CGO_ENABLED: '1'
+        CC: ${{ matrix.arch == 'arm64' && 'aarch64-linux-gnu-gcc' || '' }}
+        PKG_CONFIG_PATH: ${{ matrix.arch == 'arm64' && '/usr/lib/aarch64-linux-gnu/pkgconfig' || '' }}
       run: |
         wails build -platform linux/${{ matrix.arch }} -ldflags "-X main.Version=${{ github.ref_name }}"
 
-    - name: Package Linux binaries
+    - name: Rename binary
       run: |
         cd build/bin
         mv LanGive "LanGive-linux-${{ matrix.arch }}"
         chmod +x "LanGive-linux-${{ matrix.arch }}"
 
-    - name: Create AppImage (amd64 only)
-      if: matrix.arch == 'amd64'
+    - name: Build AppImage
       run: |
         cd build/bin
-        # Download appimagetool
-        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+        APPIMAGE_TOOL_ARCH="${{ matrix.appimage_arch }}"
+        wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGE_TOOL_ARCH}.AppImage" -O appimagetool || \
+        wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
         chmod +x appimagetool
-        
-        # Create AppDir structure
-        mkdir -p LanGive.AppDir/usr/bin
-        mkdir -p LanGive.AppDir/usr/share/icons
+
+        mkdir -p LanGive.AppDir/usr/bin LanGive.AppDir/usr/share/applications LanGive.AppDir/usr/share/icons/hicolor/256x256/apps
         cp "LanGive-linux-${{ matrix.arch }}" LanGive.AppDir/usr/bin/LanGive
-        
-        # Create desktop file
+
         cat > LanGive.AppDir/LanGive.desktop << 'EOF'
         [Desktop Entry]
         Name=LanGive
@@ -190,92 +202,114 @@ jobs:
         Terminal=false
         Type=Application
         Categories=Network;FileTransfer;
-        Keywords=lan;transfer;share;file;
         EOF
-        
-        # Create icon placeholder
-        touch LanGive.AppDir/LanGive.png
-        cp LanGive.AppDir/LanGive.png LanGive.AppDir/usr/share/icons/
-        
-        # Build AppImage
-        ./appimagetool LanGive.AppDir "LanGive-linux-${{ matrix.arch }}.AppImage"
+        cp LanGive.AppDir/LanGive.desktop LanGive.AppDir/usr/share/applications/
 
-    - name: Upload Linux artifact
+        # 占位图标（PNG），缺省时 appimagetool 会报错
+        printf '\x89PNG\r\n\x1a\n' > LanGive.AppDir/LanGive.png || true
+        cp LanGive.AppDir/LanGive.png LanGive.AppDir/usr/share/icons/hicolor/256x256/apps/
+
+        cat > LanGive.AppDir/AppRun << 'EOF'
+        #!/bin/sh
+        HERE="$(dirname "$(readlink -f "$0")")"
+        exec "$HERE/usr/bin/LanGive" "$@"
+        EOF
+        chmod +x LanGive.AppDir/AppRun
+
+        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool --no-appstream LanGive.AppDir "LanGive-linux-${{ matrix.arch }}.AppImage" || \
+        ARCH=${APPIMAGE_TOOL_ARCH} ./appimagetool LanGive.AppDir "LanGive-linux-${{ matrix.arch }}.AppImage"
+
+    - name: Build .deb
+      run: |
+        cd build/bin
+        VERSION="${GITHUB_REF_NAME#v}"
+        [ -z "$VERSION" ] && VERSION="0.0.0"
+        PKG="langive_${VERSION}_${{ matrix.debarch }}"
+        mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/share/applications" "$PKG/usr/share/icons/hicolor/256x256/apps"
+        cp "LanGive-linux-${{ matrix.arch }}" "$PKG/usr/bin/langive"
+        chmod 755 "$PKG/usr/bin/langive"
+        cat > "$PKG/usr/share/applications/langive.desktop" << 'EOF'
+        [Desktop Entry]
+        Name=LanGive
+        Comment=Cross-platform LAN file transfer tool
+        Exec=langive
+        Icon=langive
+        Terminal=false
+        Type=Application
+        Categories=Network;FileTransfer;
+        EOF
+        cat > "$PKG/DEBIAN/control" << EOF
+        Package: langive
+        Version: ${VERSION}
+        Section: net
+        Priority: optional
+        Architecture: ${{ matrix.debarch }}
+        Maintainer: Xynrin <noreply@example.com>
+        Depends: libgtk-3-0, libwebkit2gtk-4.1-0
+        Description: Cross-platform LAN file transfer tool
+         LanGive is a cross-platform LAN file transfer tool built with Wails v2.
+        EOF
+        dpkg-deb --build --root-owner-group "$PKG"
+        mv "${PKG}.deb" "LanGive-linux-${{ matrix.arch }}.deb"
+
+    - name: Build .rpm
+      run: |
+        cd build/bin
+        VERSION="${GITHUB_REF_NAME#v}"
+        [ -z "$VERSION" ] && VERSION="0.0.0"
+
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        BIN="$(pwd)/LanGive-linux-${{ matrix.arch }}"
+
+        cat > ~/rpmbuild/SPECS/langive.spec << EOF
+        Name:           langive
+        Version:        ${VERSION}
+        Release:        1%{?dist}
+        Summary:        Cross-platform LAN file transfer tool
+        License:        MIT
+        URL:            https://github.com/Xynrin/LanGive
+        BuildArch:      ${{ matrix.rpmarch }}
+        AutoReqProv:    no
+
+        %description
+        LanGive is a cross-platform LAN file transfer tool built with Wails v2.
+
+        %install
+        mkdir -p %{buildroot}/usr/bin
+        install -m 0755 ${BIN} %{buildroot}/usr/bin/langive
+
+        %files
+        /usr/bin/langive
+        EOF
+
+        rpmbuild -bb --target=${{ matrix.rpmarch }} ~/rpmbuild/SPECS/langive.spec
+        cp ~/rpmbuild/RPMS/${{ matrix.rpmarch }}/langive-${VERSION}-1*.rpm "LanGive-linux-${{ matrix.arch }}.rpm"
+
+    - name: Upload Linux artifacts
       uses: actions/upload-artifact@v4
       with:
         name: LanGive-linux-${{ matrix.arch }}
         path: |
-          build/bin/LanGive-linux-${{ matrix.arch }}
           build/bin/LanGive-linux-${{ matrix.arch }}.AppImage
+          build/bin/LanGive-linux-${{ matrix.arch }}.deb
+          build/bin/LanGive-linux-${{ matrix.arch }}.rpm
 
-  # ==================== Android Build ====================
-  build-android:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - arch: arm64-v8a
-            goarch: arm64
-          - arch: armeabi-v7a
-            goarch: '386'
-          - arch: x86_64
-            goarch: amd64
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Set up Android NDK
-      run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653"
-
-    - name: Install gomobile
-      env:
-        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/25.2.9519653
-      run: |
-        go install golang.org/x/mobile/cmd/gomobile@latest
-        go install golang.org/x/mobile/cmd/gobind@latest
-        # 新版 gomobile init 不再接受 -ndk，改读 ANDROID_NDK_HOME
-        gomobile init
-
-    - name: Build Android AAR
-      env:
-        GOOS: android
-        GOARCH: ${{ matrix.goarch }}
-      run: |
-        cd mobile/android
-        # Create AAR from Go code
-        cd ../..
-        gomobile bind -target=android -androidapi 21 -o mobile/android/app/libs/langive.aar ./internal/mdns ./internal/transfer ./internal/config ./internal/security
-
-    - name: Build Android APK
-      run: |
-        cd mobile/android
-        ./gradlew assembleRelease
-
-    - name: Upload Android artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: LanGive-android-${{ matrix.arch }}
-        path: mobile/android/app/build/outputs/apk/release/*.apk
+  # ==================== Android Build (DISABLED) ====================
+  # 暂时禁用：mobile/android/ 仅有占位 README，没有 Gradle 工程，
+  # gomobile bind 与 ./gradlew assembleRelease 无法跑通。
+  # 等 Android 工程落地后再开启此 job。
+  # build-android:
+  #   if: false
+  #   runs-on: ubuntu-latest
+  #   ...
 
   # ==================== Create Release ====================
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
 
@@ -290,45 +324,25 @@ jobs:
     - name: Prepare release files
       run: |
         mkdir -p release
-        # Copy all artifacts to release folder
-        find artifacts -type f -exec cp {} release/ \;
-        # Rename for clarity
-        cd release
-        for f in *; do
-          if [[ "$f" == *"-"* ]]; then
-            # Already named
-            :
-          else
-            echo "File: $f"
-          fi
-        done
+        find artifacts -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
+        ls -la release/
+
+    - name: Read release notes
+      id: notes
+      run: |
+        if [ -f .release/notes.md ]; then
+          echo "has_notes=1" >> "$GITHUB_OUTPUT"
+        else
+          echo "has_notes=0" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: release/*
         draft: false
         prerelease: false
-        generate_release_notes: true
+        body_path: ${{ steps.notes.outputs.has_notes == '1' && '.release/notes.md' || '' }}
+        generate_release_notes: ${{ steps.notes.outputs.has_notes != '1' }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ==================== Create Changelog ====================
-  changelog:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Generate Changelog
-      id: changelog
-      run: |
-        git log --oneline --pretty='%h %s' $(git describe --tags --abbrev=0)..HEAD > CHANGELOG.txt
-        cat CHANGELOG.txt
-
-    - name: Upload Changelog
-      uses: actions/upload-artifact@v4
-      with:
-        name: changelog
-        path: CHANGELOG.txt

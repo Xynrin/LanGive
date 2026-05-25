@@ -1,259 +1,97 @@
 <template>
-  <div class="transfers">
-    <header class="page-header">
-      <h1>传输记录</h1>
-      <div class="header-actions">
-        <button class="btn btn-secondary" @click="clearCompleted">
-          清除已完成
-        </button>
-        <button class="btn btn-primary" @click="refresh">
-          刷新
-        </button>
+  <div class="space-y-6 animate-fadeIn">
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">传输</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">所有发送与接收记录</p>
       </div>
+      <button @click="clear" class="btn-ghost" :disabled="!hasFinished">
+        <Trash2 class="w-4 h-4" /> 清除已完成
+      </button>
     </header>
 
-    <div v-if="transfers.length === 0" class="empty-state card">
-      <div class="empty-state-icon">📭</div>
-      <h3>暂无传输记录</h3>
-      <p>开始发送或接收文件以查看传输进度</p>
+    <div v-if="transfers.length === 0" class="card text-center text-slate-400 py-12">
+      <Inbox class="w-8 h-8 mx-auto mb-2" />
+      <div>还没有任何传输</div>
     </div>
 
-    <div v-else class="transfer-list">
-      <div
-        v-for="transfer in transfers"
-        :key="transfer.id"
-        class="transfer-card"
-        :class="transfer.status"
-      >
-        <div class="transfer-header">
-          <div class="transfer-type-icon">
-            {{ transfer.type === 'send' ? '📤' : '📥' }}
+    <ul v-else class="space-y-3">
+      <li v-for="t in sorted" :key="t.id" class="card">
+        <div class="flex items-center gap-3">
+          <component :is="t.type === 'send' ? Upload : Download" class="w-4 h-4 text-brand-500 shrink-0" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate">{{ t.file_name }}</span>
+              <span :class="badgeClass(t.status)">{{ statusLabel(t.status) }}</span>
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+              {{ t.peer_addr }} · {{ formatSize(t.sent_size) }} / {{ formatSize(t.total_size) }}
+            </div>
           </div>
-          <div class="transfer-title">
-            <h4>{{ transfer.file_name }}</h4>
-            <span class="transfer-peer">{{ transfer.peer_addr }}</span>
-          </div>
-          <div class="transfer-status-badge" :class="transfer.status">
-            {{ formatStatus(transfer.status) }}
-          </div>
-        </div>
-
-        <div class="transfer-progress" v-if="transfer.status === 'transferring'">
-          <div class="progress-info">
-            <span>{{ formatSize(transfer.sent_size) }} / {{ formatSize(transfer.total_size) }}</span>
-            <span>{{ transfer.progress.toFixed(1) }}%</span>
-          </div>
-          <div class="progress-bar">
-            <div
-              class="progress-bar-fill"
-              :style="{ width: transfer.progress + '%' }"
-            ></div>
-          </div>
-        </div>
-
-        <div class="transfer-footer">
-          <span class="transfer-size">{{ formatSize(transfer.total_size) }}</span>
           <button
-            v-if="transfer.status === 'transferring'"
-            class="btn btn-danger btn-sm"
-            @click="cancelTransfer(transfer.id)"
-          >
-            取消
-          </button>
+            v-if="t.status === 'transferring'"
+            @click="cancel(t.id)"
+            class="btn-danger"
+          ><X class="w-4 h-4" /> 取消</button>
         </div>
-      </div>
-    </div>
+        <div class="mt-3 h-2 rounded-full bg-slate-200/60 dark:bg-white/5 overflow-hidden">
+          <div
+            class="h-full bg-gradient-to-r from-brand-400 to-brand-600 transition-[width] duration-300"
+            :class="t.status === 'transferring' ? 'animate-progressGlow' : ''"
+            :style="{ width: (t.progress || 0) + '%' }"
+          />
+        </div>
+        <div v-if="t.error" class="mt-2 text-xs text-rose-500">{{ t.error }}</div>
+      </li>
+    </ul>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { Upload, Download, X, Trash2, Inbox } from 'lucide-vue-next'
+import {
+  GetTransfers, CancelTransfer, ClearCompletedTransfers
+} from '../../wailsjs/go/main/LanGiveApp'
 
 const transfers = ref([])
-let refreshInterval
+let timer = null
 
-const formatSize = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+const sorted = computed(() => [...transfers.value].reverse())
+const hasFinished = computed(() =>
+  transfers.value.some(t => ['completed', 'failed', 'cancelled'].includes(t.status))
+)
+
+async function refresh() {
+  try { transfers.value = await GetTransfers() || [] } catch (e) {}
+}
+async function cancel(id) {
+  try { await CancelTransfer(id); await refresh() } catch (e) {}
+}
+async function clear() {
+  try { await ClearCompletedTransfers(); await refresh() } catch (e) {}
 }
 
-const formatStatus = (status) => {
-  const statusMap = {
-    'pending': '等待中',
-    'transferring': '传输中',
-    'completed': '已完成',
-    'failed': '失败',
-    'cancelled': '已取消'
-  }
-  return statusMap[status] || status
+function statusLabel(s) {
+  return ({ completed:'已完成', transferring:'传输中', failed:'失败', cancelled:'已取消', paused:'已暂停', pending:'等待' })[s] || s
+}
+function badgeClass(s) {
+  return ({
+    completed:    'badge bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    transferring: 'badge bg-brand-500/15 text-brand-600 dark:text-brand-400',
+    failed:       'badge bg-rose-500/15 text-rose-600 dark:text-rose-400',
+    cancelled:    'badge bg-slate-500/15 text-slate-500',
+    paused:       'badge bg-amber-500/15 text-amber-600',
+  })[s] || 'badge bg-slate-500/15 text-slate-500'
+}
+function formatSize(b) {
+  b = Number(b) || 0
+  if (b < 1024) return b + ' B'
+  if (b < 1024**2) return (b/1024).toFixed(1) + ' KB'
+  if (b < 1024**3) return (b/1024**2).toFixed(1) + ' MB'
+  return (b/1024**3).toFixed(2) + ' GB'
 }
 
-const loadTransfers = async () => {
-  try {
-    const { GetTransfers } = await import('../../wailsjs/go/main/App')
-    transfers.value = await GetTransfers()
-  } catch (e) {
-    console.error('Failed to load transfers:', e)
-  }
-}
-
-const cancelTransfer = async (id) => {
-  try {
-    const { CancelTransfer } = await import('../../wailsjs/go/main/App')
-    await CancelTransfer(id)
-    loadTransfers()
-  } catch (e) {
-    console.error('Failed to cancel transfer:', e)
-  }
-}
-
-const clearCompleted = () => {
-  transfers.value = transfers.value.filter(t => t.status === 'transferring')
-}
-
-const refresh = () => {
-  loadTransfers()
-}
-
-onMounted(() => {
-  loadTransfers()
-  refreshInterval = setInterval(loadTransfers, 2000)
-})
-
-onUnmounted(() => {
-  clearInterval(refreshInterval)
-})
+onMounted(async () => { await refresh(); timer = setInterval(refresh, 1500) })
+onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
-
-<style scoped>
-.transfers {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-header h1 {
-  font-size: 1.875rem;
-  font-weight: 700;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.transfer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.transfer-card {
-  background: var(--card-bg);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  box-shadow: var(--shadow);
-  border-left: 4px solid var(--border-color);
-}
-
-.transfer-card.transferring {
-  border-left-color: var(--primary-color);
-}
-
-.transfer-card.completed {
-  border-left-color: var(--secondary-color);
-}
-
-.transfer-card.failed {
-  border-left-color: var(--danger-color);
-}
-
-.transfer-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.transfer-type-icon {
-  font-size: 1.5rem;
-}
-
-.transfer-title {
-  flex: 1;
-}
-
-.transfer-title h4 {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.transfer-peer {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.transfer-status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.transfer-status-badge.completed {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.transfer-status-badge.transferring {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.transfer-status-badge.failed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.transfer-status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.transfer-progress {
-  margin-bottom: 1rem;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.transfer-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.transfer-size {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.btn-sm {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-}
-</style>

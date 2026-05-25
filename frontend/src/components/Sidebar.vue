@@ -1,155 +1,69 @@
 <template>
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-icon">LG</div>
-      <span class="logo-text">LanGive</span>
-    </div>
-    
-    <nav class="nav">
-      <router-link
-        v-for="item in menuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: $route.path === item.path }"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-text">{{ item.name }}</span>
-      </router-link>
-    </nav>
-    
-    <div class="device-info">
-      <div class="device-name">{{ deviceName }}</div>
-      <div class="device-status">
-        <span class="status-dot online"></span>
-        在线
+  <aside class="w-60 shrink-0 h-full p-4">
+    <div class="glass rounded-2xl h-full flex flex-col p-4">
+      <div class="flex items-center gap-3 px-2 pb-4 border-b border-slate-200/60 dark:border-white/10">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center shadow-lg shadow-brand-500/30">
+          <Send class="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <div class="font-semibold tracking-tight">LanGive</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400">v{{ version }}</div>
+        </div>
       </div>
+
+      <nav class="flex-1 mt-4 space-y-1">
+        <router-link
+          v-for="item in nav"
+          :key="item.to"
+          :to="item.to"
+          v-slot="{ isActive }"
+          custom
+        >
+          <a
+            :href="item.to"
+            @click.prevent="$router.push(item.to)"
+            :class="[
+              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+              isActive
+                ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-white/5'
+            ]"
+          >
+            <component :is="item.icon" class="w-4 h-4" />
+            <span>{{ item.label }}</span>
+          </a>
+        </router-link>
+      </nav>
+
+      <button
+        @click="theme.toggle()"
+        class="btn-ghost justify-center"
+        :title="theme.dark ? '切换到浅色' : '切换到深色'"
+      >
+        <component :is="theme.dark ? Sun : Moon" class="w-4 h-4" />
+        <span class="text-xs">{{ theme.dark ? '浅色' : '深色' }}</span>
+      </button>
     </div>
   </aside>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { Home, MonitorSmartphone, ArrowDownUp, Settings, Send, Moon, Sun } from 'lucide-vue-next'
+import { useThemeStore } from '../stores/theme'
+import { GetVersion } from '../../wailsjs/go/main/LanGiveApp'
 
-const deviceName = ref('')
+const theme = useThemeStore()
+const version = ref('1.0.0')
 
-const menuItems = [
-  { path: '/', name: '首页', icon: '🏠' },
-  { path: '/devices', name: '设备', icon: '💻' },
-  { path: '/transfers', name: '传输', icon: '📤' },
-  { path: '/settings', name: '设置', icon: '⚙️' }
+const nav = [
+  { to: '/',          label: '首页',  icon: Home },
+  { to: '/devices',   label: '设备',  icon: MonitorSmartphone },
+  { to: '/transfers', label: '传输',  icon: ArrowDownUp },
+  { to: '/settings',  label: '设置',  icon: Settings },
 ]
 
 onMounted(async () => {
-  try {
-    const { GetDeviceName } = await import('../../wailsjs/go/main/App')
-    deviceName.value = await GetDeviceName()
-  } catch (e) {
-    deviceName.value = 'My Device'
-  }
+  try { version.value = await GetVersion() } catch (e) {}
 })
 </script>
-
-<style scoped>
-.sidebar {
-  width: 240px;
-  background: var(--card-bg);
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 1rem;
-}
-
-.logo-text {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: all 0.2s;
-}
-
-.nav-item:hover {
-  background: var(--bg-color);
-  color: var(--text-primary);
-}
-
-.nav-item.active {
-  background: var(--primary-color);
-  color: white;
-}
-
-.nav-icon {
-  font-size: 1.25rem;
-}
-
-.nav-text {
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.device-info {
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.device-name {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--text-primary);
-}
-
-.device-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-top: 0.25rem;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.status-dot.online {
-  background: var(--secondary-color);
-}
-</style>
