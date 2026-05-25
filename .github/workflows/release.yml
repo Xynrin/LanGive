@@ -49,7 +49,11 @@ jobs:
         npm install
 
     - name: Generate Wails bindings
-      run: wails generate module
+      run: |
+        # 先放占位让 //go:embed all:frontend/dist 能匹配到东西，否则 wails generate 会先 fail
+        mkdir -p frontend/dist
+        touch frontend/dist/.gitkeep
+        wails generate module
 
     - name: Build frontend assets
       shell: bash
@@ -108,7 +112,10 @@ jobs:
         npm install
 
     - name: Generate Wails bindings
-      run: wails generate module
+      run: |
+        mkdir -p frontend/dist
+        touch frontend/dist/.gitkeep
+        wails generate module
 
     - name: Build frontend assets
       run: |
@@ -175,7 +182,10 @@ jobs:
         npm install
 
     - name: Generate Wails bindings
-      run: wails generate module
+      run: |
+        mkdir -p frontend/dist
+        touch frontend/dist/.gitkeep
+        wails generate module
 
     - name: Build frontend assets
       run: |
